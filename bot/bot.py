@@ -338,7 +338,7 @@ def getReplLogs(update: Update, context):
     #repl_logs = stderr.read().decode('utf-8')
 
     #for ansible
-    stdin, stdout, stderr = client.exec_command("cat /var/log/postgresql/postgresql-14-main.log | grep replication")
+    stdin, stdout, stderr = client.exec_command("cat /var/log/postgresql/postgresql-14-main.log")
     repl_logs = stdout.read().decode('utf-8')
     
     splitAndSendTelegramMessage(update, repl_logs)

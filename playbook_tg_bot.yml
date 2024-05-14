@@ -1,0 +1,205 @@
+- hosts: bot
+  vars_files:
+    - env.yml
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: "cloning_bot"
+      git:
+        repo: https://github.com/KekovD/PT_Start_DevOps.git
+        version: docker
+        clone: yes
+        force: yes
+        update: yes
+        dest: /tmp/cloned_bot/
+    - name: "bot"
+      ansible.builtin.file:
+        state: directory
+        path: /usr/src/application/
+    - name: "bot_move_bot"
+      command: cp -rf /tmp/cloned_bot/bot/ /usr/src/
+    - name: "apt_bot"
+      apt:
+        state: present
+        name:
+          - postgresql-contrib
+          - postgresql-common
+          - python3
+          - python3-dev
+          - python3-pip
+          - jq
+          - libpq-dev
+    - name: "bot_pip"
+      pip:
+        requirements: /usr/src/bot/requirements.txt
+    - name: add_env
+      shell: touch /usr/src/application/.env && chmod 0777 /usr/src/application/.env
+    - name: "remove_clened"
+      shell: /bin/rm -rf /tmp/cloned
+
+- hosts: db
+  vars:
+    allow_world_readable_tmpfiles: true
+  vars_files:
+    - env.yml
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: "apt_db"
+      apt:
+        state: present
+        name:
+          - postgresql
+          - postgresql-contrib
+          - python3
+          - python3-pip
+          - acl
+          - libpq-dev
+    - name: "pip_psycorg2"
+      pip:
+        state: present
+        name:
+          - psycopg2
+    - name: "db_ig"
+      ansible.builtin.file:
+        state: absent
+        path: /usr/lib/python3.11/EXTERNALLY-MANAGED
+    - name: "db_s"
+      service: "name={{ item }} state=stopped"
+      with_items:
+        - postgresql
+    - name: "db_s"
+      service: "name={{ item }} state=started enabled=yes"
+      with_items:
+        - postgresql
+    - name: "hba"
+      copy:
+        dest: /etc/postgresql/14/main/pg_hba.conf
+        src: ./pg_hba.conf
+    - name: "hba_insert_first"
+      ansible.builtin.lineinfile:
+        line: "host all all {{ hostvars['bot_server'].ansible_host }}/24 password"
+        path: /etc/postgresql/14/main/pg_hba.conf
+    - name: "hba_insert_second"
+      ansible.builtin.lineinfile:
+        line: "host replication {{ DB_REPL_USER  }} {{ hostvars['db_repl_server'].ansible_host }}/24 scram-sha-256"
+        path: /etc/postgresql/14/main/pg_hba.conf
+    - name: "db_config"
+      copy:
+        dest: /etc/postgresql/14/main/postgresql.conf
+        src: /home/kekov/practice_4/ansible/config-postgresql
+    - name: "db_pg_cr"
+      become_user: postgres
+      become: yes
+      postgresql_db:
+        name: "{{ DB_DATABASE }}"
+        state: present
+    - name: "table_phone_numbers"
+      become: yes
+      become_user: postgres
+      postgresql_table:
+        table: "phone_numbers"
+        db: "{{ DB_DATABASE }}"
+        columns:
+        - ID SERIAL PRIMARY KEY
+        - phone_number VARCHAR(25) NOT NULL
+    - name: "table_emails"
+      become: yes
+      become_user: postgres
+      postgresql_table:
+        table: "emails"
+        db: "{{ DB_DATABASE }}"
+        columns:
+        - ID SERIAL PRIMARY KEY
+        - email VARCHAR(255) NOT NULL
+    - name: "cr_u"
+      become: yes
+      become_user: postgres
+      postgresql_user:
+        name: "{{ DB_USER }}"
+        password: "{{ DB_PASSWORD }}"
+        state: present
+    - name: "db_gr"
+      become: yes
+      become_user: postgres
+      postgresql_privs:
+        type: database
+        privs: all
+        grant_option: no
+        database: "{{ DB_DATABASE }}"
+        roles: "{{ DB_USER }}"
+    - name: "repl_user"
+      shell: sudo -u postgres psql -c "CREATE USER {{ DB_REPL_USER }} REPLICATION LOGIN ENCRYPTED PASSWORD '{{ DB_REPL_PASSWORD }}';"
+      ignore_errors: true
+    - name: "arch"
+      file:
+        owner: postgres
+        group: postgres
+        state: directory
+        recurse: yes
+        path: /oracle/pg_data/archive
+    - name: "db_fin"
+      ansible.builtin.debug:
+        msg: Done PSQL
+
+- hosts: db_repl
+  vars_files:
+    - env.yml
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: "repl_apt"
+      apt:
+        state: present
+        name:
+          - postgresql
+          - postgresql-contrib
+          - python3
+    - name: "repl_s"
+      service: "name={{ item }} state=stopped"
+      with_items:
+        - postgresql
+    - name: "repl_rm"
+      shell: /bin/rm -rf /etc/postgresql/14/main/*
+    - name: "pass"
+      copy:
+        mode: '0600'
+        dest: /var/lib/postgresql/.pgpass
+        src: ./pgpass
+        group: postgres
+        owner: postgres
+    - name: "del_db"
+      become: true
+      become_user: postgres
+      command: rm -rf /var/lib/postgresql/{{ hostvars[inventory_hostname]['POSTGRES_VERSION'] }}/
+    - name: "db_rep"
+      become: true
+      become_user: postgres
+      command: pg_basebackup -h {{ hostvars[inventory_hostname]['DB_HOST'] }} -D /var/lib/postgresql/{{ hostvars[inventory_hostname]['POSTGRES_VERSION'] }}/main/ -p {{ hostvars[inventory_hostname]['DB_PORT'] }} -U {{ hostvars[inventory_hostname]['DB_REPL_USER'] }} -vP -w
+      environment:
+        PGPASSWORD: "{{ hostvars[inventory_hostname]['DB_REPL_PASSWORD'] }}"
+
+    - name: "db_fin"
+      ansible.builtin.debug:
+        msg: Done repl
+
+- hosts: bot
+  gather_facts: yes
+  become: yes
+  tasks:
+    - name: "bot_on"
+      ansible.builtin.debug:
+        msg: "bot on"
+    - name: bot_up
+      environment:
+        TOKEN: "{{ hostvars[inventory_hostname]['TOKEN'] }}"
+        RM_PORT: "{{ hostvars[inventory_hostname]['RM_PORT'] }}"
+        RM_HOST: "{{ hostvars[inventory_hostname]['RM_HOST'] }}"
+        RM_USER: "{{ hostvars[inventory_hostname]['RM_USER'] }}"
+        RM_PASSWORD: "{{ hostvars[inventory_hostname]['RM_PASSWORD'] }}"
+        DB_PORT: "{{ hostvars[inventory_hostname]['DB_PORT'] }}"
+        DB_HOST: "{{ hostvars[inventory_hostname]['DB_HOST'] }}"
+        DB_NAME: "{{ hostvars[inventory_hostname]['DB_DATABASE'] }}"
+        DB_PASSWORD: "{{ hostvars[inventory_hostname]['DB_PASSWORD'] }}"
+        DB_USER: "{{ hostvars[inventory_hostname]['DB_USER'] }}"
+      command: python3 /usr/src/bot/bot.py

@@ -1,0 +1,11 @@
+[bot]
+bot_server ansible_host="{{BOT_HOST}}"  ansible_connection=ssh ansible_user=ubuntu ansible_password=ubuntu
+
+[db_repl]
+db_repl_server ansible_host="{{DB_REPL_HOST}}" ansible_connection=ssh ansible_user=ubuntu ansible_password=ubuntu
+
+[db]
+db_server ansible_host="{{DB_HOST}}" ansible_connection=ssh ansible_user=ubuntu ansible_password=ubuntu
+
+[remote]
+remote_server ansible_host="{{RM_HOST}}" ansible_connection=ssh ansible_user=ubuntu ansible_password=ubuntu

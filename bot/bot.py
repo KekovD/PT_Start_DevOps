@@ -58,14 +58,13 @@ def verifyPasswordCommand(update: Update, context):
 def findPhoneNumbers(update, context):
     user_input = update.message.text
 
-    regex_1 = re.compile(r'(?:\+7|8)\s?\(\d{3}\)\s?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}\b')
-    regex_2 = re.compile(r'(?:\+7|8)[\s\-]?\d{3}[\s\-]?\d{3}[\s\-]?\d{2}[\s\-]?\d{2}\b')
+    pts = [ r'(?:\+7|8)\s\(\d{3}\)\s\d{3}\s\d{2}\s\d{2}\b', r'(?:\+7|8)[-(]?\d{3}[)-]?\s?\d{3}\s?\d{2}\s?\d{2}\b',
+        r'(?:\+7|8)\(\d{3}\)\d{7}\b', r'(?:\+7|8)\s\d{3}\s\d{3}\s\d{2}\s\d{2}\b', r'(?:\+7|8)-\d{3}-\d{3}-\d{2}-\d{2}\b']
 
     context.user_data['phone_numbers'] = []
     phoneNumberList = []
 
-    phoneNumberList.extend(regex_1.findall(user_input))
-    phoneNumberList.extend(regex_2.findall(user_input))
+    phoneNumberList.extend([number for pt in pts for number in re.findall(pt, user_input)])
 
     if not phoneNumberList:
         update.message.reply_text('Телефонные номера не найдены')

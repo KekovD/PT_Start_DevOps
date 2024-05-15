@@ -333,12 +333,12 @@ def getServices(update: Update, context):
 def getReplLogs(update: Update, context):
     client = context.bot_data['ssh_client']
     # for docker
-    stdin, stdout, stderr = client.exec_command("docker logs -n 40 db_image")
-    repl_logs = stderr.read().decode('utf-8')
+    #stdin, stdout, stderr = client.exec_command("docker logs -n 40 db_image")
+    #repl_logs = stderr.read().decode('utf-8')
 
     #for ansible
-    #stdin, stdout, stderr = client.exec_command("cat /var/log/postgresql/postgresql-14-main.log")
-    #repl_logs = stdout.read().decode('utf-8')
+    stdin, stdout, stderr = client.exec_command("cat /var/log/postgresql/postgresql-14-main.log")
+    repl_logs = stdout.read().decode('utf-8')
     
     splitAndSendTelegramMessage(update, repl_logs)
 
